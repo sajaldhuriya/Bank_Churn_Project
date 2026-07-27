@@ -20,9 +20,6 @@ conn = pyodbc.connect(
 cursor = conn.cursor()
 
 
-
-
-
 # Push demographic to database
 cursor.execute("SET IDENTITY_INSERT demographic ON")
 conn.commit()
