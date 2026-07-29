@@ -1,4 +1,4 @@
--- Q1: Which customer profiles have the highest churn risk rate based on gender?
+-- Q2: Which customer profiles have the highest churn risk rate based on gender?
 USE [BankChurn];
 
 WITH 

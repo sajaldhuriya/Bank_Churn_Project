@@ -1,4 +1,5 @@
--- How does churn behavior change when we dynamically slice customers by business parameters?
+-- Q10: How does churn behavior change when we dynamically slice customers by business parameters?
+
 DECLARE @MinTenure INT = 9;
 DECLARE @MaxBalance DECIMAL = 120000;
 DECLARE @MaxProduct INT = 6

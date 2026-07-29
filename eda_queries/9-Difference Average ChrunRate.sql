@@ -1,4 +1,5 @@
--- How does churn rate vary across customer segments within each geography
+-- Q9: How does churn rate vary across customer segments within each geography
+
 WITH MainTbl AS (
 	SELECT 
 		CASE
