@@ -7,7 +7,7 @@ import mlflow.sklearn
 
 from pathlib import Path
 
-from sklearn.linear_model import LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import GridSearchCV
 
 from evaluation_script import evaluate_model
@@ -28,7 +28,7 @@ y_test = data['y_test']
 # =============================================
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Create a dedicated tracking directory at the root level to prevent corruption
+# Create a dedicated tracking directory to match your project structure
 TRACKING_DIR = BASE_DIR / "mlflow_tracking"
 TRACKING_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -42,34 +42,16 @@ mlflow.set_experiment("Bank Churn Prediction")
 # =============================================
 # Model
 # =============================================
-model = LogisticRegression(
-    random_state=200
-)
+model = KNeighborsClassifier()
 
 
 # =============================================
 # Hyperparameter Grid
 # =============================================
 param_grid = {
-    "C": [0.1, 0.5, 1, 10, 50, 100],
-    "solver": [
-        "lbfgs",
-        "liblinear"
-    ],
-    "class_weight": [
-        None,
-        "balanced"
-    ],
-    "max_iter": [
-        250,
-        500,
-        1000
-    ],
-    "tol": [
-        1e-4,
-        1e-5,
-        1e-6
-    ]
+    "n_neighbors": [3, 5, 7, 9, 11],
+    "weights": ["uniform", "distance"],
+    "p": [1, 2] # 1 = Manhattan, 2 = Euclidean
 }
 
 
@@ -80,7 +62,7 @@ grid_search = GridSearchCV(
     estimator=model,
     param_grid=param_grid,
     scoring="f1",
-    cv=10,
+    cv=5,
     n_jobs=-1,
     verbose=2
 )
@@ -89,7 +71,7 @@ grid_search = GridSearchCV(
 # =============================================
 # MLflow Run
 # =============================================
-with mlflow.start_run(run_name="Logistic Regression"):
+with mlflow.start_run(run_name="K-Nearest Neighbors"):
 
     # Train
     grid_search.fit(X_train, y_train)
@@ -137,19 +119,12 @@ with mlflow.start_run(run_name="Logistic Regression"):
 
     joblib.dump(
         best_model,
-        MODEL_DIR / "logistic_regression.pkl"
+        MODEL_DIR / "knn.pkl"
     )
 
-
 print("=" * 60)
-print("Training Completed Successfully")
+print("Training Completed Successfully (KNN)")
 print("=" * 60)
-
-print("\nBest Parameters")
-print(grid_search.best_params_)
-
-print("\nBest CV Score")
-print(grid_search.best_score_)
-
-print("\nTest Metrics")
-print(metrics)
+print("\nBest Parameters:\n", grid_search.best_params_)
+print("\nBest CV Score:\n", grid_search.best_score_)
+print("\nTest Metrics:\n", metrics)
