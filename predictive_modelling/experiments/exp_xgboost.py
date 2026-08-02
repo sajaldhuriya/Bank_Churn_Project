@@ -94,8 +94,8 @@ with mlflow.start_run(run_name="XGBoost"):
 
     # Log Model
     mlflow.xgboost.log_model(
-        xgb_model=best_model,
-        artifact_path="model"
+    xgb_model=best_model.get_booster(),
+    artifact_path="model"
     )
 
     # Save Model
