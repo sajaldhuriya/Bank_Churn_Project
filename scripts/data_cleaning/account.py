@@ -48,7 +48,7 @@ plot_boxplot(df, 'NumProducts')
 
 
 # Dealing with missing values
-df['Balance'] = df['Balance'].fillna(df['Balance'].mean(), inplace=True)
+df['Balance'].fillna(df['Balance'].mean(), inplace=True)
 
 
 # Remove columns

@@ -1,18 +1,23 @@
 """
-SVM experiment for bank churn prediction.
+K-Nearest Neighbours classifier for bank churn prediction.
 
-Pipeline: load dataset -> randomized hyperparameter search ->
+Pipeline: load dataset -> GridSearch over n_neighbors / weights / p ->
 evaluate -> log to MLflow.
+
+Note on class imbalance:
+    KNN has no native `class_weight` argument, so we lean on
+    (1) PR-AUC as the CV objective (threshold-free, honest under imbalance)
+    (2) the threshold tuner in `evaluation_script.py` to lift recall after fit.
 """
 
 import mlflow
 import mlflow.sklearn
-from sklearn.model_selection import RandomizedSearchCV
-from sklearn.svm import SVC
+from sklearn.model_selection import GridSearchCV
+from sklearn.neighbors import KNeighborsClassifier
 
 from _common import load_dataset, save_model_locally, setup_mlflow
 from evaluation_script import evaluate_model
-from scoring import f1_scorer
+from scoring import pr_auc_scorer
 
 # ---------------------------------------------------------------------
 # Load pre-processed data
@@ -27,30 +32,27 @@ EXPERIMENT_ID = setup_mlflow()
 # ---------------------------------------------------------------------
 # Model + search space
 # ---------------------------------------------------------------------
-model = SVC(probability=True, cache_size=500, random_state=200)
+model = KNeighborsClassifier()
 
-param_distributions = {
-    "C": [0.1, 1, 10],
-    "kernel": ["linear", "rbf"],
-    "gamma": ["scale", 0.01, 0.1],
-    "class_weight": [None, "balanced"],
+param_grid = {
+    "n_neighbors": [3, 5, 7, 11, 15, 21],
+    "weights": ["uniform", "distance"],
+    "p": [1, 2],          # 1 = Manhattan, 2 = Euclidean
 }
 
-search = RandomizedSearchCV(
+search = GridSearchCV(
     estimator=model,
-    param_distributions=param_distributions,
-    n_iter=10,
-    scoring=f1_scorer(),
-    cv=3,
+    param_grid=param_grid,
+    scoring=pr_auc_scorer(),
+    cv=5,
     n_jobs=-1,
     verbose=2,
-    random_state=200,
 )
 
 # ---------------------------------------------------------------------
 # Train + track
 # ---------------------------------------------------------------------
-with mlflow.start_run(run_name="Support Vector Machine"):
+with mlflow.start_run(run_name="KNN"):
     search.fit(X_train, y_train)
 
     best_model = search.best_estimator_
@@ -62,13 +64,13 @@ with mlflow.start_run(run_name="Support Vector Machine"):
         mlflow.log_metric(name, value)
 
     mlflow.sklearn.log_model(sk_model=best_model, artifact_path="model")
-    save_model_locally(best_model, "svm.pkl")
+    save_model_locally(best_model, "knn.pkl")
 
 # ---------------------------------------------------------------------
 # Report
 # ---------------------------------------------------------------------
 print("=" * 60)
-print("Training Completed Successfully (SVM)")
+print("Training Completed Successfully (KNN)")
 print("=" * 60)
 print("\nBest Parameters:\n", search.best_params_)
 print("\nBest CV Score:\n", search.best_score_)
