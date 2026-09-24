@@ -121,6 +121,53 @@ python predictive_modelling/experiments/exp_xgboost.py
 * No cost-sensitive metric — financial value of true-positive vs false-positive not quantified.
 * No drift monitoring scheduled.
 
+## How to Run This Project
+
+Follow these steps in your terminal to set up and run the full pipeline:
+
+### 1. Environment Setup
+```bash
+# Create a virtual environment
+python -m venv myenv
+
+# Activate it
+# On Windows:
+myenv\Scripts\activate
+# On macOS/Linux:
+source myenv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 2. Data Cleaning & Preprocessing
+First, prepare the cleaned CSVs and the final dataset bundle:
+```bash
+# Clean raw data
+python scripts/data_cleaning/account.py
+python scripts/data_cleaning/demographic.py
+python scripts/data_cleaning/location.py
+
+# Preprocess and create the dataset bundle
+python predictive_modelling/processed_data/preprocessing.py
+```
+
+### 3. Training Models
+Run the experiments to train and save your models (choose one or all):
+```bash
+# Example: Run XGBoost
+python predictive_modelling/experiments/exp_xgboost.py
+
+# Example: Run Random Forest
+python predictive_modelling/experiments/randomforest.py
+```
+
+### 4. Evaluation
+To evaluate the saved models and tune thresholds, run the evaluation script:
+```bash
+python predictive_modelling/experiments/evaluation_script.py
+```
+
 ---
 
 Built for portfolio / interview demonstration; all metrics above are reproducible by running the model scripts.
