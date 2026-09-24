@@ -1,22 +1,3 @@
-"""
-Bank Churn Preprocessing
-
-Reads cleaned CSVs produced by scripts/data_cleaning/*.py, joins them,
-splits, scales, one-hot-encodes, and persists a `dataset_bundle.pkl`
-that the modelling scripts can load directly.
-
-By default this module reads from the cleaned CSV files (the source of
-truth used by both EDA and the statistical testing notebook). It can
-optionally rebuild from SQL Server when BANKCHURN_USE_SQL=1 is set in
-the environment and a local instance is available. This removes the
-hard-coded server name dependency that earlier versions carried.
-
-CSV inputs expected under data/processed/:
-    account.csv      CustomerId, Tenure, Balance, NumProducts, HasCreditCard, IsActive
-    demographic.csv  CustomerId, Gender, Age, Salary, LocationId, Churned
-    location.csv     LocationId, Geography
-"""
-
 import os
 from pathlib import Path
 
@@ -35,31 +16,8 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 DATA_PROCESSED = BASE_DIR / "data" / "processed"
 
 # ---------------------------------------------------------------------
-# Load (CSV or SQL)
+# Load (CSV)
 # ---------------------------------------------------------------------
-def _load_from_sql() -> pd.DataFrame:
-    """Read the joined dataset from a local SQL Server (when configured)."""
-    import pyodbc
-
-    server = os.environ.get("BANKCHURN_SQL_SERVER", "localhost")
-    database = os.environ.get("BANKCHURN_SQL_DB", "BankChurn")
-    conn = pyodbc.connect(
-        "Driver={SQL Server};"
-        f"Server={server};"
-        f"Database={database};"
-        "Trusted_Connection=yes;"
-    )
-    query = """
-        SELECT d.Gender, d.Age, d.Salary, l.Geography,
-               a.Tenure, a.Balance, a.NumProducts, a.HasCreditCard, a.IsActive,
-               d.Churned
-        FROM demographic d
-        JOIN account a   ON a.CustomerId  = d.CustomerId
-        JOIN location  l ON l.LocationId  = d.LocationId
-    """
-    return pd.read_sql(query, conn)
-
-
 def _load_from_csv() -> pd.DataFrame:
     """Join the three processed CSVs in memory (no SQL dependency)."""
     account = pd.read_csv(DATA_PROCESSED / "account.csv")
@@ -72,9 +30,6 @@ def _load_from_csv() -> pd.DataFrame:
 
 
 def load_dataframe() -> pd.DataFrame:
-    """Load the modelling dataframe from SQL if configured, else CSVs."""
-    if os.environ.get("BANKCHURN_USE_SQL") == "1":
-        return _load_from_sql()
     return _load_from_csv()
 
 
@@ -102,7 +57,6 @@ def build_preprocessor(df: pd.DataFrame) -> ColumnTransformer:
 
 def main() -> None:
     df = load_dataframe()
-    # SQL Server `BIT` columns come back as bool; cast for sklearn.
     if df["Churned"].dtype == bool:
         df["Churned"] = df["Churned"].astype(int)
     for col in ["HasCreditCard", "IsActive"]:

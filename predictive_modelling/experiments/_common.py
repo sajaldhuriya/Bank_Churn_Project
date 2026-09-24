@@ -20,7 +20,6 @@ from pathlib import Path
 from typing import Tuple
 
 import joblib
-import mlflow
 import numpy as np
 from sklearn.base import ClassifierMixin
 
@@ -30,9 +29,6 @@ from sklearn.base import ClassifierMixin
 BASE_DIR = Path(__file__).resolve().parent.parent
 PROCESSED_DATA = BASE_DIR / "processed_data" / "dataset_bundle.pkl"
 MODELS_DIR = BASE_DIR / "models"
-MLFLOW_DIR = BASE_DIR / "mlflow_tracking"
-MLFLOW_DB = MLFLOW_DIR / "mlflow.db"
-EXPERIMENT_NAME = "Bank Churn Prediction"
 
 
 # ---------------------------------------------------------------------
@@ -72,32 +68,6 @@ def _to_y_int(y) -> np.ndarray:
         except (ValueError, TypeError):
             pass
     return arr
-
-
-# ---------------------------------------------------------------------
-# MLflow
-# ---------------------------------------------------------------------
-def setup_mlflow() -> str:
-    """
-    Point MLflow at the project-local SQLite file and select (or create)
-    the experiment. Idempotent — safe to call at the top of every script.
-
-    Returns
-    -------
-    str
-        The configured experiment id.
-    """
-    MLFLOW_DIR.mkdir(parents=True, exist_ok=True)
-    tracking_uri = f"sqlite:///{MLFLOW_DB.as_posix()}"
-    mlflow.set_tracking_uri(tracking_uri)
-
-    exp = mlflow.get_experiment_by_name(EXPERIMENT_NAME)
-    if exp is None:
-        experiment_id = mlflow.create_experiment(EXPERIMENT_NAME)
-    else:
-        experiment_id = exp.experiment_id
-    mlflow.set_experiment(EXPERIMENT_NAME)
-    return experiment_id
 
 
 # ---------------------------------------------------------------------

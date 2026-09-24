@@ -1,31 +1,24 @@
 # Bank Churn Prediction
 
-Predict whether a bank customer will churn using demographic, account, and geographic features. End-to-end ML project: ingest from CSV / SQL Server, EDA in SQL + Power BI, hypothesis tests, six tuned classifiers, threshold optimisation, MLflow tracking.
+Predict whether a bank customer will churn using demographic, account, and geographic features. End-to-end ML project: ingest from CSV / SQL Server, EDA in SQL + Power BI, hypothesis tests, six tuned classifiers, and threshold optimisation.
 
 ```
 data/clean CSVs ─► preprocessing.py ─► dataset_bundle.pkl
                                               │
                                               ▼
-                       run.py  (Optuna / GridSearch per model)
+                       Run individual model scripts (Optuna / GridSearch)
                                               │
-                                  ┌───────────┴───────────┐
-                                  ▼                       ▼
-                         MLflow (SQLite)        models/*.pkl
+                                              ▼
+                                           models/*.pkl
 ```
 
-## How to reproduce (one command)
+## How to reproduce
 
+Run the individual model scripts in `predictive_modelling/experiments/` to train and save models. Each script prints a performance summary and saves a `.pkl` file.
+
+Example:
 ```bash
-python run.py
-```
-
-This trains all seven models (Logistic Regression, KNN, Decision Tree, Random Forest, SVM, XGBoost, **XGBoost – Recall-Optimized**), logs every run to MLflow, saves a `.pkl` per model, and prints a leaderboard. To run a single model: `python run.py --model xgboost_balanced`.
-
-View results:
-
-```bash
-mlflow ui --backend-store-uri sqlite:///predictive_modelling/mlflow_tracking/mlflow.db
-# open http://127.0.0.1:5000
+python predictive_modelling/experiments/exp_xgboost.py
 ```
 
 ## Project layout
@@ -43,14 +36,12 @@ mlflow ui --backend-store-uri sqlite:///predictive_modelling/mlflow_tracking/mlf
 ├── predictive_modelling/
 │   ├── processed_data/            # preprocessing.py + dataset_bundle.pkl
 │   ├── experiments/
-│   │   ├── _common.py             # load_dataset, setup_mlflow, save_model_locally
+│   │   ├── _common.py             # load_dataset, save_model_locally
 │   │   ├── scoring.py             # version-stable scorers (PR-AUC, F1, ...)
 │   │   ├── evaluation_script.py   # metrics + threshold tuner
 │   │   ├── *.py                   # one canonical script per model
-│   ├── models/                    # 7 trained .pkl files
-│   └── mlflow_tracking/mlflow.db  # experiment store
+│   └── models/                    # trained .pkl files
 ├── Table_creation_in_sql_for_ingestion.sql
-├── run.py                         # end-to-end orchestrator
 ├── requirements.txt
 └── README.md
 ```
@@ -60,12 +51,11 @@ mlflow ui --backend-store-uri sqlite:///predictive_modelling/mlflow_tracking/mlf
 | Model | Hyperparameter search | Notable metric |
 |-------|------------------------|----------------|
 | Logistic Regression | GridSearchCV (10-fold) over C, solver, class_weight, max_iter, tol | interpretable baseline |
-| KNN | GridSearchCV (5-fold) over n_neighbors, weights, p | n_neighbors=3, distance |
+| KNN | GridSearchCV (5-fold) over n_neighbors, weights, p | n_neighbors=21, distance |
 | Decision Tree | Optuna (20 trials) over depth, splits, leaf, criterion | balanced class weight |
 | Random Forest | Optuna (20 trials), 5-fold CV on F1 | balanced class weight |
 | SVM | RandomizedSearchCV (10 iters, 3-fold) over C, kernel, gamma | RBF, balanced |
-| XGBoost | Optuna (25 trials), 5-fold CV on F1 | depth-5 trees |
-| **XGBoost – Recall-Optimized** | Optuna (30 trials) on **PR-AUC**, stratified 5-fold, `scale_pos_weight = N_neg/N_pos` | headline model |
+| XGBoost | Optuna (25 trials), 5-fold CV on F1 | depth-3 trees |
 
 ## Evaluation framework
 
@@ -83,26 +73,22 @@ mlflow ui --backend-store-uri sqlite:///predictive_modelling/mlflow_tracking/mlf
 
 | Model | Recall (default 0.5) | Recall (tuned) | Best threshold | PR_AUC | ROC_AUC |
 |-------|---------------------|----------------|----------------|--------|---------|
-| Logistic Regression | 0.705 | **0.651** | 0.53 | 0.432 | 0.762 |
-| KNN | 0.361 | 0.494 | 0.33 | 0.435 | 0.706 |
-| Decision Tree | **0.676** | 0.676 | 0.44 | 0.611 | 0.827 |
-| Random Forest | **0.698** | **0.791** | 0.39 | 0.656 | 0.842 |
-| SVM | **0.710** | 0.771 | 0.16 | 0.627 | 0.827 |
-| XGBoost | 0.440 | 0.789 | 0.14 | 0.643 | 0.832 |
-| **XGBoost – Recall-Optimized** | **0.722** | **0.799** | **0.40** | **0.682** | **0.851** |
+| Logistic Regression | 0.705 | 0.651 | 0.53 | 0.432 | 0.762 |
+| KNN | 0.248 | 0.717 | 0.20 | 0.597 | 0.797 |
+| Decision Tree | 0.435 | 0.727 | 0.17 | 0.590 | 0.803 |
+| Random Forest | 0.681 | 0.784 | 0.40 | 0.649 | 0.840 |
+| SVM | 0.710 | 0.771 | 0.16 | 0.627 | 0.827 |
+| XGBoost | 0.442 | 0.789 | 0.15 | 0.670 | 0.844 |
 
 ### Headline takeaway
 
-> XGBoost with `scale_pos_weight = 3.91` and PR-AUC optimisation drives **Recall_Churn_tuned to 0.799** while keeping precision at the 0.40 operational floor — a substantial improvement over the unweighted baseline.
+> **Random Forest** and **XGBoost** provide the best overall balance. Random Forest achieves a strong F1-score, while XGBoost shows the highest ROC-AUC (0.844), indicating superior class separation.
 
 ## Recall-improvement recipe (what we changed and why)
 
 1. **`class_weight="balanced"`** for sklearn models (RF, DT, SVM, KNN, LR).
-2. **`scale_pos_weight = N_neg / N_pos`** in XGBoost – Recall-Optimized.
-3. **PR-AUC as the Optuna objective** instead of F1 — the F1-from-CV score collapses on degenerate minority folds; PR-AUC is threshold-free and robust.
-4. **Threshold tuning** in `evaluation_script.py`: pick the lowest threshold whose test precision is ≥ `DEFAULT_PRECISION_FLOOR = 0.40`.
-5. **Stratified 5-fold CV** in `exp_xgboost_balanced.py` instead of one 80/20 split.
-6. **Custom-wrapped scorers** in `scoring.py` to side-step the `needs_proba` argument that sklearn removed in version 1.4+.
+2. **Threshold tuning** in `evaluation_script.py`: pick the lowest threshold whose test precision is ≥ `DEFAULT_PRECISION_FLOOR = 0.40`.
+3. **Custom-wrapped scorers** in `scoring.py` to side-step the `needs_proba` argument that sklearn removed in version 1.4+.
 
 ## Statistical testing
 
@@ -110,7 +96,7 @@ mlflow ui --backend-store-uri sqlite:///predictive_modelling/mlflow_tracking/mlf
 
 ## Repository hygiene
 
-* `.gitignore` excludes `models/`, `mlflow.db`, `__pycache__/`, `myenv`.
+* `.gitignore` excludes `models/`, `__pycache__/`, `myenv`.
 * `requirements.txt` pins the full stack.
 * No hard-coded SQL Server name — `BANKCHURN_USE_SQL=1` env var enables the optional SQL path; otherwise the pipeline reads from the cleaned CSVs.
 
@@ -123,11 +109,9 @@ mlflow ui --backend-store-uri sqlite:///predictive_modelling/mlflow_tracking/mlf
 | `scripts/data_cleaning/location.py` | Export `location.csv` |
 | `scripts/data_cleaning/functions.py` | Helpers (`categorical_sanity_check`, `validate_dtypes`, `missing_value_report`, …) |
 | `predictive_modelling/processed_data/preprocessing.py` | Read → join → split → scale → one-hot → pickle |
-| `predictive_modelling/experiments/_common.py` | Shared MLflow + I/O helpers |
-| `predictive_modelling/experiments/scoring.py` | sklearn-version-safe scorers |
+| `predictive_modelling/experiments/_common.py` | Shared I/O helpers |
 | `predictive_modelling/experiments/evaluation_script.py` | Metrics + threshold tuner |
-| `predictive_modelling/experiments/{LogisticRegression,knn,exp_decision_tree,randomforest,svm,exp_xgboost,exp_xgboost_balanced}.py` | One canonical script per model |
-| `run.py` | End-to-end orchestrator |
+| `predictive_modelling/experiments/{LogisticRegression,knn,exp_decision_tree,randomforest,svm,exp_xgboost}.py` | One canonical script per model |
 | `Table_creation_in_sql_for_ingestion.sql` | SQL schema |
 
 ## Limitations & future work
@@ -139,4 +123,4 @@ mlflow ui --backend-store-uri sqlite:///predictive_modelling/mlflow_tracking/mlf
 
 ---
 
-Built for portfolio / interview demonstration; all metrics above are reproducible from the command at the top of this file.
+Built for portfolio / interview demonstration; all metrics above are reproducible by running the model scripts.
